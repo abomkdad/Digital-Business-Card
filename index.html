@@ -67,7 +67,36 @@
     (function(){
       var btn = document.getElementById('btnVcf');
       if(!btn) return;
-      btn.addEventListener('click', function(){
+
+      function foldVCardLine(line){
+        // Soft fold at 73 chars with CRLF + space (RFC 2425)
+        var out = '';
+        while(line.length > 73){
+          out += line.slice(0,73) + '
+ ';
+          line = line.slice(73);
+        }
+        return out + line;
+      }
+
+      async function buildPhotoLine(){
+        try{
+          const resp = await fetch('profile.jpg', {cache: 'no-store'});
+          if(!resp.ok) throw new Error('fetch failed');
+          const blob = await resp.blob();
+          const mime = (blob.type || 'image/jpeg').toLowerCase();
+          const dataUrl = await new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.readAsDataURL(blob); });
+          const base64 = String(dataUrl).split(',')[1] || '';
+          const type = mime.includes('png') ? 'PNG' : mime.includes('webp') ? 'WEBP' : 'JPEG';
+          return foldVCardLine(`PHOTO;ENCODING=b;TYPE=${type}:${base64}`);
+        }catch(e){
+          // Fallback to URI value if fetching/encoding fails
+          return 'PHOTO;VALUE=URI:profile.jpg';
+        }
+      }
+
+      btn.addEventListener('click', async function(){
+        const photoLine = await buildPhotoLine();
         var lines = [
           'BEGIN:VCARD',
           'VERSION:3.0',
@@ -77,6 +106,7 @@
           'TITLE:מייסד ומנכ"ל',
           'TEL;TYPE=CELL,VOICE:+972525105889',
           'EMAIL;TYPE=INTERNET,PREF:abomkdad2@gmail.com',
+          photoLine,
           'URL:https://madperfume.co.il/',
           'item1.URL:https://wa.me/972522511866',
           'item2.URL:https://www.instagram.com/perfume.mad/',
@@ -84,7 +114,8 @@
           'item4.URL:https://www.tiktok.com/@mad.perfume',
           'END:VCARD'
         ];
-        var blob = new Blob([lines.join('\n')], {type:'text/vcard;charset=utf-8'});
+        var blob = new Blob([lines.join('
+')], {type:'text/vcard;charset=utf-8'});
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'מוחמד_ג׳לבוני.vcf';
